@@ -1,3 +1,6 @@
+import threading
+import asyncio
+from services.ais_live import listen_ais, get_latest_position
 import streamlit as st
 import folium
 from streamlit_folium import st_folium
@@ -8,6 +11,9 @@ from services.ais import get_ais_position
 
 st.set_page_config(page_title="FAST TRANSIT LINE", layout="wide")
 
+if "ais_started" not in st.session_state:
+    st.session_state.ais_started = False
+    
 st.title("FAST TRANSIT LINE - Industrial Tracking SaaS")
 
 # -----------------------
@@ -61,7 +67,9 @@ if data:
     # -----------------------
     st.subheader("🌍 AIS Live Position")
 
-    lat, lon = get_ais_position(data["vessel"])
+    from services.ais_live import get_latest_position
+
+lat, lon = get_latest_position()
 
     m = folium.Map(
         location=[lat, lon],
@@ -77,3 +85,11 @@ if data:
     ).add_to(m)
 
     st_folium(m, width=1100, height=500)
+
+def start_ais():
+    asyncio.run(listen_ais("ALL_SHIPS"))
+    if not st.session_state.ais_started:
+    threading.Thread(target=start_ais, daemon=True).start()
+    st.session_state.ais_started = True
+
+st.write("AIS started:", st.session_state.ais_started)
