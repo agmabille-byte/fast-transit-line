@@ -1,76 +1,106 @@
 import streamlit as st
+import requests
 import folium
 from streamlit_folium import st_folium
 
-st.set_page_config(page_title="FAST TRANSIT LINE", layout="wide")
+st.set_page_config(page_title="FAST TRANSIT LINE SAAS", layout="wide")
 
-st.title("FAST TRANSIT LINE - Container Tracking SaaS")
+# -----------------------
+# STATE (stabilité carte)
+# -----------------------
+if "data" not in st.session_state:
+    st.session_state.data = None
 
-# ---------------------------
-# 🔍 INPUT
-# ---------------------------
-container = st.text_input("Numéro de conteneur (ex: DRYU9926309)")
+st.title("FAST TRANSIT LINE - Real SaaS Tracking")
 
-# ---------------------------
-# 🧠 DETECTION COMPAGNIE
-# ---------------------------
+# -----------------------
+# INPUTS
+# -----------------------
+container = st.text_input("Container number (ex: DRYU9926309)")
+carrier_input = st.text_input("Carrier (optional - MSC, MAERSK, CMA CGM...)")
+
+# -----------------------
+# AUTO DETECTION CARRIER
+# -----------------------
 def detect_carrier(code):
 
     prefix = code[:4].upper()
 
-    if prefix in ["MSCU", "MEDU"]:
-        return "MSC"
-    elif prefix in ["CMAU"]:
-        return "CMA CGM"
-    elif prefix in ["MAEU"]:
-        return "MAERSK"
-    elif prefix in ["HLCU"]:
-        return "HAPAG-LLOYD"
-    elif prefix in ["ONEY"]:
-        return "ONE"
-    elif prefix in ["COSU"]:
-        return "COSCO"
-    elif prefix in ["OOLU"]:
-        return "OOCL"
-    elif prefix in ["YMLU"]:
-        return "YANG MING"
-    elif prefix in ["EGLV"]:
-        return "EVERGREEN"
-    elif prefix in ["HMMU"]:
-        return "HMM"
-    else:
-        return "COMPAGNIE NON IDENTIFIÉE"
+    mapping = {
+        "MSCU": "MSC",
+        "MEDU": "MSC",
+        "CMAU": "CMA CGM",
+        "MAEU": "MAERSK",
+        "HLCU": "HAPAG-LLOYD",
+        "ONEY": "ONE",
+        "COSU": "COSCO",
+        "OOLU": "OOCL",
+        "EGLV": "EVERGREEN",
+        "HMMU": "HMM",
+        "YMLU": "YANG MING"
+    }
 
-# ---------------------------
-# 🚢 ACTION
-# ---------------------------
-if st.button("Rechercher") and container:
+    return mapping.get(prefix, "UNKNOWN")
 
-    carrier = detect_carrier(container)
+# -----------------------
+# SIMULATION API (remplacer par SeaRates ensuite)
+# -----------------------
+def get_tracking(container, carrier):
 
-    st.subheader("📦 Résultat tracking")
+    return {
+        "container": container,
+        "carrier": carrier,
+        "vessel": "MSC ANNA",
+        "pol": "Shanghai",
+        "pod": "Le Havre",
+        "etd": "2026-05-10",
+        "eta": "2026-06-01",
+        "lat": 31.2,
+        "lon": 121.4
+    }
 
-    st.write("Conteneur :", container)
-    st.write("Compagnie :", carrier)
+# -----------------------
+# ACTION
+# -----------------------
+if st.button("TRACK") and container:
 
-    st.write("Navire : MSC ANNA")
-    st.write("Port départ : Shanghai")
-    st.write("Port arrivée : Le Havre")
-    st.write("ETA : 01/06/2026")
+    carrier = carrier_input if carrier_input else detect_carrier(container)
 
-    # ---------------------------
-    # 🌍 CARTE AIS STABLE
-    # ---------------------------
-    st.subheader("🌍 Position AIS du navire")
+    data = get_tracking(container, carrier)
 
-    lat, lon = 31.2, 121.4  # Shanghai zone
+    st.session_state.data = data
 
-    m = folium.Map(location=[lat, lon], zoom_start=3)
+# -----------------------
+# DISPLAY (stable)
+# -----------------------
+if st.session_state.data:
+
+    d = st.session_state.data
+
+    st.subheader("📦 Tracking result")
+
+    st.write("Container:", d["container"])
+    st.write("Carrier:", d["carrier"])
+    st.write("Vessel:", d["vessel"])
+    st.write("POL:", d["pol"])
+    st.write("POD:", d["pod"])
+    st.write("ETA:", d["eta"])
+
+    # -----------------------
+    # MAP (stable rendering)
+    # -----------------------
+    st.subheader("🌍 AIS Live Position")
+
+    m = folium.Map(
+        location=[d["lat"], d["lon"]],
+        zoom_start=3,
+        tiles="CartoDB dark_matter"
+    )
 
     folium.Marker(
-        [lat, lon],
-        popup=f"{carrier} - MSC ANNA",
-        tooltip="Position AIS",
+        [d["lat"], d["lon"]],
+        popup=d["vessel"],
+        tooltip="AIS Position",
         icon=folium.Icon(color="blue", icon="ship", prefix="fa")
     ).add_to(m)
 
