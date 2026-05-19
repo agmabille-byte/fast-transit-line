@@ -4,3 +4,5 @@ beautifulsoup4
 lxml
 folium
 streamlit-folium
+websockets
+asyncio
