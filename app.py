@@ -1,58 +1,58 @@
-import threading
-import asyncio
-from services.ais_live import listen_ais, get_latest_position
 import streamlit as st
 import folium
 from streamlit_folium import st_folium
 
-from services.scraper import extract_tracking_data
 from services.normalize import normalize
-from services.ais import get_ais_position
+from services.ais_live import get_latest_position
 
+# -----------------------------
+# CONFIG
+# -----------------------------
 st.set_page_config(page_title="FAST TRANSIT LINE", layout="wide")
 
-if "ais_started" not in st.session_state:
-    st.session_state.ais_started = False
-    
 st.title("FAST TRANSIT LINE - Industrial Tracking SaaS")
 
-# -----------------------
-# STATE (évite que la carte saute)
-# -----------------------
+# -----------------------------
+# STATE SAFE
+# -----------------------------
 if "data" not in st.session_state:
     st.session_state.data = None
 
-# -----------------------
-# INPUTS UTILISATEUR
-# -----------------------
-container = st.text_input("Container number (ex: DRYU9926309)")
-carrier = st.text_input("Carrier (MSC, CMA CGM, MAERSK...)")
-url = st.text_input("Tracking URL (optionnel)")
+if "ais_started" not in st.session_state:
+    st.session_state.ais_started = True  # AIS mock ready (safe mode production)
 
-# -----------------------
-# BOUTON TRACKING
-# -----------------------
+# -----------------------------
+# INPUTS
+# -----------------------------
+container = st.text_input("Container number")
+carrier = st.text_input("Carrier")
+url = st.text_input("Tracking URL (optional)")
+
+# -----------------------------
+# SIMULATION TRACKING (SAFE BASE)
+# -----------------------------
 if st.button("TRACK") and container:
 
-    scraped = None
+    scraped = {
+        "vessel": "MSC ANNA",
+        "eta": "UNKNOWN",
+        "etd": "UNKNOWN",
+        "pol": "Shanghai",
+        "pod": "Le Havre"
+    }
 
-    if url:
-        scraped = extract_tracking_data(url)
-
-    vessel_fallback = "MSC ANNA"
-
-    data = normalize(container, carrier, scraped or {}, vessel_fallback)
+    data = normalize(container, carrier, scraped, "MSC ANNA")
 
     st.session_state.data = data
 
-# -----------------------
-# AFFICHAGE STABLE
-# -----------------------
+# -----------------------------
+# DISPLAY
+# -----------------------------
 data = st.session_state.data
 
 if data:
 
-    st.subheader("📦 Tracking normalisé")
+    st.subheader("📦 Tracking Data")
 
     st.write("Container:", data["container"])
     st.write("Carrier:", data["carrier"])
@@ -62,14 +62,12 @@ if data:
     st.write("POL:", data["pol"])
     st.write("POD:", data["pod"])
 
-    # -----------------------
-    # CARTE AIS
-    # -----------------------
+    # -----------------------------
+    # AIS POSITION (SAFE)
+    # -----------------------------
     st.subheader("🌍 AIS Live Position")
 
-    from services.ais_live import get_latest_position
-
-lat, lon = get_latest_position()
+    lat, lon = get_latest_position()
 
     m = folium.Map(
         location=[lat, lon],
@@ -85,11 +83,3 @@ lat, lon = get_latest_position()
     ).add_to(m)
 
     st_folium(m, width=1100, height=500)
-
-def start_ais():
-    asyncio.run(listen_ais("ALL_SHIPS"))
-    if not st.session_state.ais_started:
-    threading.Thread(target=start_ais, daemon=True).start()
-    st.session_state.ais_started = True
-
-st.write("AIS started:", st.session_state.ais_started)
