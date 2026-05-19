@@ -2,94 +2,64 @@ import streamlit as st
 import folium
 from streamlit_folium import st_folium
 
-st.set_page_config(page_title="FAST TRANSIT LINE - INDUSTRIAL FREE", layout="wide")
+from services.scraper import extract_tracking_data
+from services.normalize import normalize
+from services.ais import get_ais_position
 
-st.title("FAST TRANSIT LINE - Industrial Real Tracking (FREE AIS LIVE READY)")
+st.set_page_config(page_title="FAST TRANSIT LINE", layout="wide")
 
-# -----------------------
-# STATE STABLE
-# -----------------------
-if "tracking" not in st.session_state:
-    st.session_state.tracking = None
+st.title("FAST TRANSIT LINE - Industrial Tracking SaaS")
 
 # -----------------------
-# CARRIER DETECTION REALISTIC
+# STATE (évite que la carte saute)
 # -----------------------
-def detect_carrier(container):
-
-    prefix = container[:4].upper()
-
-    carriers = {
-        "MSCU": "MSC",
-        "MAEU": "MAERSK",
-        "CMAU": "CMA CGM",
-        "HLCU": "HAPAG-LLOYD",
-        "ONEY": "ONE",
-        "COSU": "COSCO",
-        "OOLU": "OOCL",
-        "EGLV": "EVERGREEN",
-        "HMMU": "HMM",
-        "YMLU": "YANG MING"
-    }
-
-    return carriers.get(prefix, "UNKNOWN")
+if "data" not in st.session_state:
+    st.session_state.data = None
 
 # -----------------------
-# INDUSTRIAL CONTAINER LAYER (FREE LOGIC)
-# -----------------------
-def get_container_data(container, carrier):
-
-    # ⚠️ base logique industrielle (remplaçable API pro)
-    return {
-        "container": container,
-        "carrier": carrier,
-        "vessel": "MSC ANNA",
-        "pol": "Shanghai",
-        "pod": "Le Havre",
-        "eta": "2026-06-01"
-    }
-
-# -----------------------
-# AIS REAL POSITION (FREE LAYER READY)
-# -----------------------
-def get_ais_position(vessel):
-
-    # ⚠️ fallback statique (sera remplacé par AISStream live)
-    return 31.2, 121.4
-
-# -----------------------
-# INPUT
+# INPUTS UTILISATEUR
 # -----------------------
 container = st.text_input("Container number (ex: DRYU9926309)")
+carrier = st.text_input("Carrier (MSC, CMA CGM, MAERSK...)")
+url = st.text_input("Tracking URL (optionnel)")
 
+# -----------------------
+# BOUTON TRACKING
+# -----------------------
 if st.button("TRACK") and container:
 
-    carrier = detect_carrier(container)
+    scraped = None
 
-    data = get_container_data(container, carrier)
+    if url:
+        scraped = extract_tracking_data(url)
 
-    st.session_state.tracking = data
+    vessel_fallback = "MSC ANNA"
+
+    data = normalize(container, carrier, scraped or {}, vessel_fallback)
+
+    st.session_state.data = data
 
 # -----------------------
-# DISPLAY STABLE
+# AFFICHAGE STABLE
 # -----------------------
-data = st.session_state.tracking
+data = st.session_state.data
 
 if data:
 
-    st.subheader("📦 Container Tracking")
+    st.subheader("📦 Tracking normalisé")
 
     st.write("Container:", data["container"])
     st.write("Carrier:", data["carrier"])
     st.write("Vessel:", data["vessel"])
+    st.write("ETA:", data["eta"])
+    st.write("ETD:", data["etd"])
     st.write("POL:", data["pol"])
     st.write("POD:", data["pod"])
-    st.write("ETA:", data["eta"])
 
     # -----------------------
-    # 🌍 AIS MAP (READY FOR REAL STREAM)
+    # CARTE AIS
     # -----------------------
-    st.subheader("🌍 LIVE AIS POSITION (INDUSTRIAL READY)")
+    st.subheader("🌍 AIS Live Position")
 
     lat, lon = get_ais_position(data["vessel"])
 
@@ -102,7 +72,7 @@ if data:
     folium.Marker(
         [lat, lon],
         popup=data["vessel"],
-        tooltip="AIS LIVE SHIP",
+        tooltip="AIS LIVE",
         icon=folium.Icon(color="blue", icon="ship", prefix="fa")
     ).add_to(m)
 
